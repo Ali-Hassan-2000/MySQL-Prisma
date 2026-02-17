@@ -1,0 +1,120 @@
+Im using mac here:
+
+Step 1: Install mysql2 and add DB
+
+	npm install mysql2	(istall mysql2)
+	
+	brew install mysql
+	brew services start mysql	(to start the secvice)
+
+	npm audit	(check for vulnerabilities)
+	npm audit fix	(fix)
+
+	mysql -u root -e "CREATE DATABASE your_database_name;" (create DB)
+
+	mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'your_password';" (set password)
+
+	mysql -u root -p -e "SHOW DATABASES;" (check)
+
+
+Step 2: Remove my mongoDB and install Prisma ORM
+	
+	npm uninstall mongoose
+	npm install @prisma/client@5
+	npm install prisma@5 --save-dev
+	npx prisma init
+
+
+Step 3: config Prisma ( prisma/schema.prisma )
+
+	generator client {
+  	 provider = "prisma-client-js"
+	}
+
+	datasource db {
+  	 provider = "mysql"
+  	 url      = env("DATABASE_URL")
+	}
+
+	model User {
+  	 id             Int      @id @default(autoincrement())
+  	 username       String   @unique
+  	 hashedPassword String
+  	 createdAt      DateTime @default(now())
+  	 updatedAt      DateTime @updatedAt
+	}
+
+
+Step 4: modify the .env
+	
+	DATABASE_URL="mysql://root:your_password@localhost:3306/your_database_name"
+
+
+Step 5: delete ( prisma.config.ts ) because its configuered for psql not mysql
+
+	rm prisma.config.ts
+	npx prisma migrate dev --name init
+
+
+Step 6: Replace server.js with the new version (removes Mongoose, adds Prisma)
+
+	remove the next lines from srevice.js
+		
+		const mongoose = require('mongoose');
+		
+	then add after it
+	
+		const { PrismaClient } = require('@prisma/client');
+
+		const prisma = new PrismaClient();
+
+		//to print message after running the server
+		prisma.$connect()
+		  .then(() => console.log('Connected to MySQL database.'))
+		  .catch((err) => console.error('Failed to connect to MySQL:', err.message));
+
+
+	then remove
+		
+		mongoose.connect(process.env.MONGODB_URI);
+
+		mongoose.connection.on('connected', () => {
+  		 console.log(`Connected to MongoDB ${mongoose.connection.name}.`);
+		});
+
+	then add after app.use and before the controllers mount
+
+		// Make prisma available to all routes
+		app.use((req, res, next) => {
+  		 req.prisma = prisma;
+  		 next();
+		});
+
+Step 7: fix the controllers to the new DB
+
+	delete the require models and any CRUD related the the previous DB (CRUD code will be 		different for the new DB so replace the code)
+	
+	Ex.: 
+		for mongoDB:  User.findOne({ 
+				username: req.body.username 
+			      }); 
+			    
+		
+		for Prisma ORM:  req.prisma.user.findUnique({
+      				  where: { username: req.body.username }
+    				 });
+
+
+Step 8: delete model dir
+
+
+Step 9: Prisma commands
+
+	Database path in local (/opt/homebrew/var/mysql)
+	when you update Prisma Schema you need to delete the migration file then create new one	
+
+	Migration command to create the tables
+		npx prisma migrate dev --name init
+
+	To run Prisma studio
+		npx prisma studio
